@@ -586,55 +586,52 @@ const ToolDetailModal = ({ isOpen, onClose, tool }) => {
                               {renderStars(review.rating)}
                             </div>
                             {isAuthenticated && user?.username === review.username && (
-                              <>
-                                {console.log('Debug info:', { isAuthenticated, currentUser: user?.username, reviewAuthor: review.username, matches: user?.username === review.username })}
-                                <DropdownMenu>
-                                  <DropdownMenuTrigger asChild>
-                                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-gray-400 hover:text-white">
-                                      <MoreVertical className="h-4 w-4" />
-                                    </Button>
-                                  </DropdownMenuTrigger>
-                                  <DropdownMenuContent className="bg-gray-800 border-gray-700">
-                                    <DropdownMenuItem 
-                                      onClick={() => handleEditReview(review)}
-                                      className="text-white hover:bg-gray-700 cursor-pointer"
-                                    >
-                                      <Edit className="w-4 h-4 mr-2" />
-                                      Edit Review
-                                    </DropdownMenuItem>
-                                    <AlertDialog>
-                                      <AlertDialogTrigger asChild>
-                                        <DropdownMenuItem 
-                                          onSelect={(e) => e.preventDefault()}
-                                          className="text-red-400 hover:bg-gray-700 cursor-pointer"
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-gray-400 hover:text-white">
+                                    <MoreVertical className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent className="bg-gray-800 border-gray-700">
+                                  <DropdownMenuItem 
+                                    onClick={() => handleEditReview(review)}
+                                    className="text-white hover:bg-gray-700 cursor-pointer"
+                                  >
+                                    <Edit className="w-4 h-4 mr-2" />
+                                    Edit Review
+                                  </DropdownMenuItem>
+                                  <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                      <DropdownMenuItem 
+                                        onSelect={(e) => e.preventDefault()}
+                                        className="text-red-400 hover:bg-gray-700 cursor-pointer"
+                                      >
+                                        <Trash2 className="w-4 h-4 mr-2" />
+                                        Delete Review
+                                      </DropdownMenuItem>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent className="bg-gray-900 border-gray-700">
+                                      <AlertDialogHeader>
+                                        <AlertDialogTitle className="text-white">Delete Review</AlertDialogTitle>
+                                        <AlertDialogDescription className="text-gray-400">
+                                          Are you sure you want to delete your review? This action cannot be undone.
+                                        </AlertDialogDescription>
+                                      </AlertDialogHeader>
+                                      <AlertDialogFooter>
+                                        <AlertDialogCancel className="bg-gray-800 border-gray-600 hover:bg-gray-700 text-white">
+                                          Cancel
+                                        </AlertDialogCancel>
+                                        <AlertDialogAction 
+                                          onClick={() => handleDeleteReview(review.id)}
+                                          className="bg-red-600 hover:bg-red-700"
                                         >
-                                          <Trash2 className="w-4 h-4 mr-2" />
-                                          Delete Review
-                                        </DropdownMenuItem>
-                                      </AlertDialogTrigger>
-                                      <AlertDialogContent className="bg-gray-900 border-gray-700">
-                                        <AlertDialogHeader>
-                                          <AlertDialogTitle className="text-white">Delete Review</AlertDialogTitle>
-                                          <AlertDialogDescription className="text-gray-400">
-                                            Are you sure you want to delete your review? This action cannot be undone.
-                                          </AlertDialogDescription>
-                                        </AlertDialogHeader>
-                                        <AlertDialogFooter>
-                                          <AlertDialogCancel className="bg-gray-800 border-gray-600 hover:bg-gray-700 text-white">
-                                            Cancel
-                                          </AlertDialogCancel>
-                                          <AlertDialogAction 
-                                            onClick={() => handleDeleteReview(review.id)}
-                                            className="bg-red-600 hover:bg-red-700"
-                                          >
-                                            Delete
-                                          </AlertDialogAction>
-                                        </AlertDialogFooter>
-                                      </AlertDialogContent>
-                                    </AlertDialog>
-                                  </DropdownMenuContent>
-                                </DropdownMenu>
-                              </>
+                                          Delete
+                                        </AlertDialogAction>
+                                      </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                  </AlertDialog>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
                             )}
                           </div>
                         </div>
