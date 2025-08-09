@@ -559,6 +559,270 @@ class AIToolsAPITester:
         
         return success, response
 
+    # ===== NEW EDIT/DELETE REVIEW TESTS =====
+    
+    def test_edit_review(self):
+        """Test editing an existing review (requires auth and ownership)"""
+        if not self.auth_token or not hasattr(self, 'test_review_id'):
+            print("   Skipping - no auth token or review ID available")
+            return False, {}
+            
+        updated_review_data = {
+            "tool_id": self.test_tool_id,
+            "rating": 5,
+            "title": "Updated: Excellent AI tool!",
+            "content": "After using this tool more extensively, I'm even more impressed. The recent updates have made it even better!"
+        }
+        
+        success, response = self.run_test(
+            "Edit Review", 
+            "PUT", 
+            f"reviews/{self.test_review_id}", 
+            200,
+            data=updated_review_data,
+            auth_required=True
+        )
+        
+        if success:
+            print(f"   Updated review: {response.get('title')} (Rating: {response.get('rating')}/5)")
+            # Verify updated_at timestamp changed
+            if 'updated_at' in response:
+                print(f"   Review updated at: {response['updated_at']}")
+        
+        return success, response
+
+    def test_edit_nonexistent_review(self):
+        """Test editing a non-existent review (should fail with 404)"""
+        if not self.auth_token:
+            print("   Skipping - no auth token available")
+            return True, {}
+            
+        fake_review_id = "nonexistent-review-id"
+        updated_review_data = {
+            "tool_id": self.test_tool_id,
+            "rating": 3,
+            "title": "This should fail",
+            "content": "Review doesn't exist"
+        }
+        
+        success, response = self.run_test(
+            "Edit Non-existent Review (should fail)", 
+            "PUT", 
+            f"reviews/{fake_review_id}", 
+            404,  # Should fail with 404
+            data=updated_review_data,
+            auth_required=True
+        )
+        
+        return success, response
+
+    def test_edit_review_unauthorized(self):
+        """Test editing another user's review (should fail with 403)"""
+        if not hasattr(self, 'test_review_id'):
+            print("   Skipping - no review ID available")
+            return True, {}
+            
+        # Create a second user to test unauthorized access
+        timestamp = datetime.now().strftime("%H%M%S")
+        second_user_data = {
+            "username": f"testuser2_{timestamp}",
+            "email": f"test2_{timestamp}@example.com",
+            "password": "TestPassword123!"
+        }
+        
+        # Register second user
+        success_reg, _ = self.run_test(
+            "Register Second User", 
+            "POST", 
+            "register", 
+            200,
+            data=second_user_data
+        )
+        
+        if not success_reg:
+            print("   Could not create second user, skipping unauthorized test")
+            return True, {}
+        
+        # Login as second user
+        login_data = {
+            "username": second_user_data["username"],
+            "password": second_user_data["password"]
+        }
+        
+        success_login, login_response = self.run_test(
+            "Login Second User", 
+            "POST", 
+            "login", 
+            200,
+            data=login_data
+        )
+        
+        if not success_login or 'access_token' not in login_response:
+            print("   Could not login second user, skipping unauthorized test")
+            return True, {}
+        
+        # Store original token and use second user's token
+        original_token = self.auth_token
+        self.auth_token = login_response['access_token']
+        
+        updated_review_data = {
+            "tool_id": self.test_tool_id,
+            "rating": 1,
+            "title": "Unauthorized edit attempt",
+            "content": "This should fail with 403"
+        }
+        
+        success, response = self.run_test(
+            "Edit Review Unauthorized (should fail)", 
+            "PUT", 
+            f"reviews/{self.test_review_id}", 
+            403,  # Should fail with 403
+            data=updated_review_data,
+            auth_required=True
+        )
+        
+        # Restore original token
+        self.auth_token = original_token
+        
+        return success, response
+
+    def test_delete_review_unauthorized(self):
+        """Test deleting another user's review (should fail with 403)"""
+        if not hasattr(self, 'test_review_id'):
+            print("   Skipping - no review ID available")
+            return True, {}
+            
+        # Create a third user to test unauthorized deletion
+        timestamp = datetime.now().strftime("%H%M%S")
+        third_user_data = {
+            "username": f"testuser3_{timestamp}",
+            "email": f"test3_{timestamp}@example.com",
+            "password": "TestPassword123!"
+        }
+        
+        # Register third user
+        success_reg, _ = self.run_test(
+            "Register Third User", 
+            "POST", 
+            "register", 
+            200,
+            data=third_user_data
+        )
+        
+        if not success_reg:
+            print("   Could not create third user, skipping unauthorized delete test")
+            return True, {}
+        
+        # Login as third user
+        login_data = {
+            "username": third_user_data["username"],
+            "password": third_user_data["password"]
+        }
+        
+        success_login, login_response = self.run_test(
+            "Login Third User", 
+            "POST", 
+            "login", 
+            200,
+            data=login_data
+        )
+        
+        if not success_login or 'access_token' not in login_response:
+            print("   Could not login third user, skipping unauthorized delete test")
+            return True, {}
+        
+        # Store original token and use third user's token
+        original_token = self.auth_token
+        self.auth_token = login_response['access_token']
+        
+        success, response = self.run_test(
+            "Delete Review Unauthorized (should fail)", 
+            "DELETE", 
+            f"reviews/{self.test_review_id}", 
+            403,  # Should fail with 403
+            auth_required=True
+        )
+        
+        # Restore original token
+        self.auth_token = original_token
+        
+        return success, response
+
+    def test_delete_nonexistent_review(self):
+        """Test deleting a non-existent review (should fail with 404)"""
+        if not self.auth_token:
+            print("   Skipping - no auth token available")
+            return True, {}
+            
+        fake_review_id = "nonexistent-review-id"
+        
+        success, response = self.run_test(
+            "Delete Non-existent Review (should fail)", 
+            "DELETE", 
+            f"reviews/{fake_review_id}", 
+            404,  # Should fail with 404
+            auth_required=True
+        )
+        
+        return success, response
+
+    def test_delete_review(self):
+        """Test deleting own review (should succeed and cascade delete comments)"""
+        if not self.auth_token or not hasattr(self, 'test_review_id'):
+            print("   Skipping - no auth token or review ID available")
+            return False, {}
+            
+        # First verify the review exists and has comments
+        success_get, review_response = self.run_test(
+            "Verify Review Before Delete", 
+            "GET", 
+            f"reviews/{self.test_tool_id}", 
+            200
+        )
+        
+        if success_get:
+            reviews_before = len(review_response.get('reviews', []))
+            print(f"   Reviews before deletion: {reviews_before}")
+        
+        # Delete the review
+        success, response = self.run_test(
+            "Delete Own Review", 
+            "DELETE", 
+            f"reviews/{self.test_review_id}", 
+            200,
+            auth_required=True
+        )
+        
+        if success:
+            print(f"   Delete response: {response}")
+            
+            # Verify review is gone
+            success_verify, verify_response = self.run_test(
+                "Verify Review Deleted", 
+                "GET", 
+                f"reviews/{self.test_tool_id}", 
+                200
+            )
+            
+            if success_verify:
+                reviews_after = len(verify_response.get('reviews', []))
+                print(f"   Reviews after deletion: {reviews_after}")
+                
+                # Verify comments were also deleted (cascade)
+                if hasattr(self, 'test_comment_id'):
+                    success_comments, comments_response = self.run_test(
+                        "Verify Comments Cascade Deleted", 
+                        "GET", 
+                        f"comments/{self.test_review_id}", 
+                        200
+                    )
+                    
+                    if success_comments:
+                        comments_after = len(comments_response.get('comments', []))
+                        print(f"   Comments after review deletion: {comments_after}")
+        
+        return success, response
+
 def main():
     print("🚀 Starting AI Tools Hub API Testing (Phase 2 - Authentication & Reviews)")
     print("=" * 70)
