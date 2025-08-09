@@ -9,6 +9,9 @@ class AIToolsAPITester:
         self.api_url = f"{base_url}/api"
         self.tests_run = 0
         self.tests_passed = 0
+        self.auth_token = None
+        self.test_user_id = None
+        self.test_tool_id = None
 
     def run_test(self, name, method, endpoint, expected_status, data=None, params=None):
         """Run a single API test"""
