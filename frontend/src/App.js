@@ -432,10 +432,11 @@ const ReviewModal = ({ isOpen, onClose, tool, editingReview = null, onReviewUpda
 
 // Tool Detail Modal Component
 const ToolDetailModal = ({ isOpen, onClose, tool }) => {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const [reviews, setReviews] = useState([]);
   const [loadingReviews, setLoadingReviews] = useState(false);
   const [showReviewModal, setShowReviewModal] = useState(false);
+  const [editingReview, setEditingReview] = useState(null);
 
   useEffect(() => {
     if (isOpen && tool) {
@@ -456,6 +457,25 @@ const ToolDetailModal = ({ isOpen, onClose, tool }) => {
     setLoadingReviews(false);
   };
 
+  const handleDeleteReview = async (reviewId) => {
+    try {
+      await axios.delete(`${API}/reviews/${reviewId}`);
+      fetchReviews(); // Refresh reviews after deletion
+    } catch (error) {
+      console.error('Error deleting review:', error);
+    }
+  };
+
+  const handleEditReview = (review) => {
+    setEditingReview(review);
+    setShowReviewModal(true);
+  };
+
+  const handleReviewUpdated = () => {
+    fetchReviews(); // Refresh reviews after update
+    setEditingReview(null);
+  };
+
   const renderStars = (rating) => {
     return Array.from({ length: 5 }, (_, i) => (
       <Star
@@ -474,6 +494,7 @@ const ToolDetailModal = ({ isOpen, onClose, tool }) => {
   if (!tool) return null;
 
   const IconComponent = categoryIcons[tool.category] || Sparkles;
+  const userHasReviewed = reviews.some(review => review.username === user?.username);
 
   return (
     <>
@@ -526,7 +547,7 @@ const ToolDetailModal = ({ isOpen, onClose, tool }) => {
                     Visit Website
                   </a>
                 </Button>
-                {isAuthenticated && (
+                {isAuthenticated && !userHasReviewed && (
                   <Button onClick={() => setShowReviewModal(true)}>
                     <Plus className="w-4 h-4 mr-2" />
                     Write Review
@@ -560,14 +581,69 @@ const ToolDetailModal = ({ isOpen, onClose, tool }) => {
                             <h4 className="font-medium text-white">{review.title}</h4>
                             <p className="text-sm text-gray-400">by {review.username}</p>
                           </div>
-                          <div className="flex items-center gap-1">
-                            {renderStars(review.rating)}
+                          <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-1">
+                              {renderStars(review.rating)}
+                            </div>
+                            {isAuthenticated && user?.username === review.username && (
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                                    <MoreVertical className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent className="bg-gray-800 border-gray-700">
+                                  <DropdownMenuItem 
+                                    onClick={() => handleEditReview(review)}
+                                    className="text-white hover:bg-gray-700 cursor-pointer"
+                                  >
+                                    <Edit className="w-4 h-4 mr-2" />
+                                    Edit Review
+                                  </DropdownMenuItem>
+                                  <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                      <DropdownMenuItem 
+                                        onSelect={(e) => e.preventDefault()}
+                                        className="text-red-400 hover:bg-gray-700 cursor-pointer"
+                                      >
+                                        <Trash2 className="w-4 h-4 mr-2" />
+                                        Delete Review
+                                      </DropdownMenuItem>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent className="bg-gray-900 border-gray-700">
+                                      <AlertDialogHeader>
+                                        <AlertDialogTitle className="text-white">Delete Review</AlertDialogTitle>
+                                        <AlertDialogDescription className="text-gray-400">
+                                          Are you sure you want to delete your review? This action cannot be undone.
+                                        </AlertDialogDescription>
+                                      </AlertDialogHeader>
+                                      <AlertDialogFooter>
+                                        <AlertDialogCancel className="bg-gray-800 border-gray-600 hover:bg-gray-700 text-white">
+                                          Cancel
+                                        </AlertDialogCancel>
+                                        <AlertDialogAction 
+                                          onClick={() => handleDeleteReview(review.id)}
+                                          className="bg-red-600 hover:bg-red-700"
+                                        >
+                                          Delete
+                                        </AlertDialogAction>
+                                      </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                  </AlertDialog>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            )}
                           </div>
                         </div>
                         <p className="text-gray-300 mt-2">{review.content}</p>
-                        <p className="text-xs text-gray-500 mt-2">
-                          {new Date(review.created_at).toLocaleDateString()}
-                        </p>
+                        <div className="flex items-center justify-between mt-2">
+                          <p className="text-xs text-gray-500">
+                            {new Date(review.created_at).toLocaleDateString()}
+                            {review.updated_at !== review.created_at && (
+                              <span className="ml-2">(edited)</span>
+                            )}
+                          </p>
+                        </div>
                       </CardContent>
                     </Card>
                   ))}
@@ -580,8 +656,13 @@ const ToolDetailModal = ({ isOpen, onClose, tool }) => {
 
       <ReviewModal
         isOpen={showReviewModal}
-        onClose={() => setShowReviewModal(false)}
+        onClose={() => {
+          setShowReviewModal(false);
+          setEditingReview(null);
+        }}
         tool={tool}
+        editingReview={editingReview}
+        onReviewUpdated={handleReviewUpdated}
       />
     </>
   );
