@@ -46,20 +46,16 @@ const AuthProvider = ({ children }) => {
 
   const login = async (credentials) => {
     try {
-      console.log('Attempting login with:', credentials.username);
       const response = await axios.post(`${API}/login`, credentials);
       const { access_token } = response.data;
-      console.log('Login successful, got token');
       
       setToken(access_token);
       localStorage.setItem('token', access_token);
       axios.defaults.headers.common['Authorization'] = `Bearer ${access_token}`;
       
       await fetchCurrentUser();
-      console.log('User profile fetched after login');
       return { success: true };
     } catch (error) {
-      console.error('Login error:', error);
       return { 
         success: false, 
         error: error.response?.data?.detail || 'Login failed' 
