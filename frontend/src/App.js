@@ -238,12 +238,12 @@ function App() {
             </div>
             
             <div className="flex flex-wrap gap-4 justify-center items-center">
-              <Select value={selectedCategory || undefined} onValueChange={(value) => setSelectedCategory(value || '')}>
+              <Select value={selectedCategory || undefined} onValueChange={(value) => setSelectedCategory(value === 'all' ? '' : value)}>
                 <SelectTrigger className="w-40 bg-gray-800/50 border-gray-700 text-white">
                   <SelectValue placeholder="Category" />
                 </SelectTrigger>
                 <SelectContent className="bg-gray-800 border-gray-700">
-                  <SelectItem value="" className="text-white hover:bg-gray-700">All Categories</SelectItem>
+                  <SelectItem value="all" className="text-white hover:bg-gray-700">All Categories</SelectItem>
                   {categories.map((cat) => (
                     <SelectItem key={cat.value} value={cat.value} className="text-white hover:bg-gray-700">
                       {cat.label}
@@ -252,12 +252,12 @@ function App() {
                 </SelectContent>
               </Select>
               
-              <Select value={selectedPriceModel || undefined} onValueChange={(value) => setSelectedPriceModel(value || '')}>
+              <Select value={selectedPriceModel || undefined} onValueChange={(value) => setSelectedPriceModel(value === 'all' ? '' : value)}>
                 <SelectTrigger className="w-40 bg-gray-800/50 border-gray-700 text-white">
                   <SelectValue placeholder="Price Model" />
                 </SelectTrigger>
                 <SelectContent className="bg-gray-800 border-gray-700">
-                  <SelectItem value="" className="text-white hover:bg-gray-700">All Price Models</SelectItem>
+                  <SelectItem value="all" className="text-white hover:bg-gray-700">All Price Models</SelectItem>
                   {priceModels.map((pm) => (
                     <SelectItem key={pm.value} value={pm.value} className="text-white hover:bg-gray-700">
                       {pm.label}
@@ -266,12 +266,12 @@ function App() {
                 </SelectContent>
               </Select>
               
-              <Select value={selectedPlatform || undefined} onValueChange={(value) => setSelectedPlatform(value || '')}>
+              <Select value={selectedPlatform || undefined} onValueChange={(value) => setSelectedPlatform(value === 'all' ? '' : value)}>
                 <SelectTrigger className="w-40 bg-gray-800/50 border-gray-700 text-white">
                   <SelectValue placeholder="Platform" />
                 </SelectTrigger>
                 <SelectContent className="bg-gray-800 border-gray-700">
-                  <SelectItem value="" className="text-white hover:bg-gray-700">All Platforms</SelectItem>
+                  <SelectItem value="all" className="text-white hover:bg-gray-700">All Platforms</SelectItem>
                   {platforms.map((platform) => (
                     <SelectItem key={platform.value} value={platform.value} className="text-white hover:bg-gray-700">
                       {platform.label}
