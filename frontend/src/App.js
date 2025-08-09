@@ -585,6 +585,13 @@ const ToolDetailModal = ({ isOpen, onClose, tool }) => {
                             <div className="flex items-center gap-1">
                               {renderStars(review.rating)}
                             </div>
+                            {/* Debug info */}
+                            <span className="text-xs text-yellow-400">
+                              Auth: {isAuthenticated ? 'Y' : 'N'} | 
+                              User: {user?.username || 'none'} | 
+                              Author: {review.username} | 
+                              Match: {user?.username === review.username ? 'Y' : 'N'}
+                            </span>
                             {isAuthenticated && user?.username === review.username && (
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
