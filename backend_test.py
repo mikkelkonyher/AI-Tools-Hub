@@ -864,6 +864,13 @@ def main():
         ("Create Comment", tester.test_create_comment),
         ("Get Review Comments", tester.test_get_review_comments),
         ("Review Without Auth", tester.test_review_without_auth),
+        # NEW EDIT/DELETE TESTS
+        ("Edit Review", tester.test_edit_review),
+        ("Edit Non-existent Review", tester.test_edit_nonexistent_review),
+        ("Edit Review Unauthorized", tester.test_edit_review_unauthorized),
+        ("Delete Review Unauthorized", tester.test_delete_review_unauthorized),
+        ("Delete Non-existent Review", tester.test_delete_nonexistent_review),
+        ("Delete Review", tester.test_delete_review),  # This should be last as it deletes the review
     ]
     
     all_tests = phase1_tests + phase2_tests
