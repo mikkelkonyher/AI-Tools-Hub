@@ -1,15 +1,19 @@
-from fastapi import FastAPI, APIRouter, Query, HTTPException
+from fastapi import FastAPI, APIRouter, Query, HTTPException, Depends, status
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import logging
 from pathlib import Path
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, EmailStr
 from typing import List, Optional
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from enum import Enum
+from passlib.context import CryptContext
+from jose import JWTError, jwt
+import bcrypt
 
 
 ROOT_DIR = Path(__file__).parent
@@ -25,6 +29,13 @@ app = FastAPI()
 
 # Create a router with the /api prefix
 api_router = APIRouter(prefix="/api")
+
+# Security
+security = HTTPBearer()
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+SECRET_KEY = os.environ.get("JWT_SECRET_KEY", "your-secret-key-change-in-production")
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
 
 # Enums for AI Tools
@@ -52,7 +63,32 @@ class Platform(str, Enum):
     BROWSER_EXTENSION = "browser_extension"
 
 
-# Models
+# Authentication Models
+class UserCreate(BaseModel):
+    username: str
+    email: EmailStr
+    password: str
+
+class UserLogin(BaseModel):
+    username: str
+    password: str
+
+class User(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    username: str
+    email: EmailStr
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    is_active: bool = True
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+class TokenData(BaseModel):
+    username: Optional[str] = None
+
+
+# AI Tool Models
 class AITool(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     name: str
@@ -78,13 +114,114 @@ class AIToolCreate(BaseModel):
     website_url: str
     image_url: Optional[str] = None
 
+
+# Review Models
+class ReviewCreate(BaseModel):
+    tool_id: str
+    rating: int = Field(..., ge=1, le=5)
+    title: str
+    content: str
+
+class Review(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    tool_id: str
+    user_id: str
+    username: str
+    rating: int
+    title: str
+    content: str
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+class CommentCreate(BaseModel):
+    review_id: str
+    content: str
+    parent_id: Optional[str] = None
+
+class Comment(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    review_id: str
+    user_id: str
+    username: str
+    content: str
+    parent_id: Optional[str] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+# Response Models
 class ToolsResponse(BaseModel):
     tools: List[AITool]
     total: int
     page: int
     per_page: int
 
-# Legacy status check models
+class ReviewsResponse(BaseModel):
+    reviews: List[Review]
+    total: int
+    page: int
+    per_page: int
+
+class CommentsResponse(BaseModel):
+    comments: List[Comment]
+    total: int
+
+
+# Authentication Helper Functions
+def verify_password(plain_password, hashed_password):
+    return pwd_context.verify(plain_password, hashed_password)
+
+def get_password_hash(password):
+    return pwd_context.hash(password)
+
+def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
+    to_encode = data.copy()
+    if expires_delta:
+        expire = datetime.utcnow() + expires_delta
+    else:
+        expire = datetime.utcnow() + timedelta(minutes=15)
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt
+
+async def get_user(username: str):
+    user = await db.users.find_one({"username": username})
+    if user:
+        return User(**user)
+
+async def authenticate_user(username: str, password: str):
+    user_data = await db.users.find_one({"username": username})
+    if not user_data:
+        return False
+    if not verify_password(password, user_data["hashed_password"]):
+        return False
+    return User(**user_data)
+
+async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])
+        username: str = payload.get("sub")
+        if username is None:
+            raise credentials_exception
+        token_data = TokenData(username=username)
+    except JWTError:
+        raise credentials_exception
+    user = await get_user(username=token_data.username)
+    if user is None:
+        raise credentials_exception
+    return user
+
+async def get_current_active_user(current_user: User = Depends(get_current_user)):
+    if not current_user.is_active:
+        raise HTTPException(status_code=400, detail="Inactive user")
+    return current_user
+
+
+# Legacy status models
 class StatusCheck(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     client_name: str
@@ -97,8 +234,48 @@ class StatusCheckCreate(BaseModel):
 # Routes
 @api_router.get("/")
 async def root():
-    return {"message": "AI Tools Aggregator API"}
+    return {"message": "AI Tools Aggregator API with Authentication"}
 
+# Authentication Routes
+@api_router.post("/register", response_model=User)
+async def register_user(user: UserCreate):
+    # Check if user already exists
+    existing_user = await db.users.find_one({"$or": [{"username": user.username}, {"email": user.email}]})
+    if existing_user:
+        raise HTTPException(
+            status_code=400,
+            detail="Username or email already registered"
+        )
+    
+    # Hash password and create user
+    hashed_password = get_password_hash(user.password)
+    user_data = User(username=user.username, email=user.email)
+    user_dict = user_data.dict()
+    user_dict["hashed_password"] = hashed_password
+    
+    await db.users.insert_one(user_dict)
+    return user_data
+
+@api_router.post("/login", response_model=Token)
+async def login_user(user_credentials: UserLogin):
+    user = await authenticate_user(user_credentials.username, user_credentials.password)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": user.username}, expires_delta=access_token_expires
+    )
+    return {"access_token": access_token, "token_type": "bearer"}
+
+@api_router.get("/me", response_model=User)
+async def get_current_user_profile(current_user: User = Depends(get_current_active_user)):
+    return current_user
+
+# AI Tools Routes
 @api_router.get("/tools", response_model=ToolsResponse)
 async def get_tools(
     category: Optional[Category] = None,
@@ -155,13 +332,126 @@ async def get_tool(tool_id: str):
         raise HTTPException(status_code=404, detail="Tool not found")
     return AITool(**tool)
 
-@api_router.post("/tools", response_model=AITool)
-async def create_tool(tool_data: AIToolCreate):
-    """Create a new AI tool"""
-    tool = AITool(**tool_data.dict())
-    await db.ai_tools.insert_one(tool.dict())
-    return tool
+# Review Routes
+@api_router.post("/reviews", response_model=Review)
+async def create_review(review: ReviewCreate, current_user: User = Depends(get_current_active_user)):
+    """Create a new review for a tool"""
+    
+    # Check if tool exists
+    tool = await db.ai_tools.find_one({"id": review.tool_id})
+    if not tool:
+        raise HTTPException(status_code=404, detail="Tool not found")
+    
+    # Check if user already reviewed this tool
+    existing_review = await db.reviews.find_one({"tool_id": review.tool_id, "user_id": current_user.id})
+    if existing_review:
+        raise HTTPException(status_code=400, detail="You have already reviewed this tool")
+    
+    # Create review
+    review_data = Review(
+        **review.dict(),
+        user_id=current_user.id,
+        username=current_user.username
+    )
+    
+    await db.reviews.insert_one(review_data.dict())
+    
+    # Update tool rating
+    await update_tool_rating(review.tool_id)
+    
+    return review_data
 
+@api_router.get("/reviews/{tool_id}", response_model=ReviewsResponse)
+async def get_tool_reviews(
+    tool_id: str,
+    page: int = Query(1, ge=1),
+    per_page: int = Query(10, ge=1, le=50)
+):
+    """Get reviews for a specific tool"""
+    
+    # Calculate skip for pagination
+    skip = (page - 1) * per_page
+    
+    # Get total count
+    total = await db.reviews.count_documents({"tool_id": tool_id})
+    
+    # Get reviews with pagination
+    reviews_cursor = db.reviews.find({"tool_id": tool_id}).skip(skip).limit(per_page).sort("created_at", -1)
+    reviews = await reviews_cursor.to_list(per_page)
+    
+    # Convert to models
+    review_objects = [Review(**review) for review in reviews]
+    
+    return ReviewsResponse(
+        reviews=review_objects,
+        total=total,
+        page=page,
+        per_page=per_page
+    )
+
+@api_router.post("/comments", response_model=Comment)
+async def create_comment(comment: CommentCreate, current_user: User = Depends(get_current_active_user)):
+    """Create a new comment on a review"""
+    
+    # Check if review exists
+    review = await db.reviews.find_one({"id": comment.review_id})
+    if not review:
+        raise HTTPException(status_code=404, detail="Review not found")
+    
+    # Create comment
+    comment_data = Comment(
+        **comment.dict(),
+        user_id=current_user.id,
+        username=current_user.username
+    )
+    
+    await db.comments.insert_one(comment_data.dict())
+    return comment_data
+
+@api_router.get("/comments/{review_id}", response_model=CommentsResponse)
+async def get_review_comments(review_id: str):
+    """Get comments for a specific review"""
+    
+    # Get comments
+    comments_cursor = db.comments.find({"review_id": review_id}).sort("created_at", 1)
+    comments = await comments_cursor.to_list(1000)
+    
+    # Get total count
+    total = len(comments)
+    
+    # Convert to models
+    comment_objects = [Comment(**comment) for comment in comments]
+    
+    return CommentsResponse(
+        comments=comment_objects,
+        total=total
+    )
+
+async def update_tool_rating(tool_id: str):
+    """Update the average rating for a tool"""
+    
+    # Get all reviews for the tool
+    reviews_cursor = db.reviews.find({"tool_id": tool_id})
+    reviews = await reviews_cursor.to_list(1000)
+    
+    if reviews:
+        # Calculate average rating
+        total_rating = sum(review["rating"] for review in reviews)
+        average_rating = total_rating / len(reviews)
+        
+        # Update tool
+        await db.ai_tools.update_one(
+            {"id": tool_id},
+            {
+                "$set": {
+                    "rating": round(average_rating, 1),
+                    "review_count": len(reviews),
+                    "updated_at": datetime.utcnow()
+                }
+            }
+        )
+
+# Filter Options Routes
 @api_router.get("/categories")
 async def get_categories():
     """Get all available categories"""
@@ -177,6 +467,7 @@ async def get_platforms():
     """Get all available platforms"""
     return [{"value": p.value, "label": p.value.replace("_", " ").title()} for p in Platform]
 
+# Seed Data Route
 @api_router.post("/seed-data")
 async def seed_sample_data():
     """Seed database with sample AI tools data"""
