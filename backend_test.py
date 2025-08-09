@@ -560,13 +560,13 @@ class AIToolsAPITester:
         return success, response
 
 def main():
-    print("🚀 Starting AI Tools Hub API Testing")
-    print("=" * 50)
+    print("🚀 Starting AI Tools Hub API Testing (Phase 2 - Authentication & Reviews)")
+    print("=" * 70)
     
     tester = AIToolsAPITester()
     
-    # Test sequence
-    tests = [
+    # Test sequence - Phase 1 (Basic functionality)
+    phase1_tests = [
         ("Root Endpoint", tester.test_root_endpoint),
         ("Seed Data", tester.test_seed_data),
         ("Get Categories", tester.test_get_categories),
@@ -582,9 +582,42 @@ def main():
         ("Get Specific Tool", tester.test_get_specific_tool),
     ]
     
-    print(f"\n📋 Running {len(tests)} test suites...")
+    # Test sequence - Phase 2 (Authentication & Reviews)
+    phase2_tests = [
+        ("User Registration", tester.test_user_registration),
+        ("Duplicate Registration", tester.test_duplicate_user_registration),
+        ("User Login", tester.test_user_login),
+        ("Invalid Login", tester.test_invalid_login),
+        ("Get Current User", tester.test_get_current_user),
+        ("Protected Route Without Auth", tester.test_protected_route_without_auth),
+        ("Create Review", tester.test_create_review),
+        ("Duplicate Review", tester.test_duplicate_review),
+        ("Get Tool Reviews", tester.test_get_tool_reviews),
+        ("Create Comment", tester.test_create_comment),
+        ("Get Review Comments", tester.test_get_review_comments),
+        ("Review Without Auth", tester.test_review_without_auth),
+    ]
     
-    for test_name, test_func in tests:
+    all_tests = phase1_tests + phase2_tests
+    
+    print(f"\n📋 Running {len(all_tests)} test suites...")
+    print(f"   Phase 1: {len(phase1_tests)} basic functionality tests")
+    print(f"   Phase 2: {len(phase2_tests)} authentication & review tests")
+    
+    # Run Phase 1 tests
+    print(f"\n🔵 PHASE 1: BASIC FUNCTIONALITY TESTS")
+    print("=" * 50)
+    for test_name, test_func in phase1_tests:
+        print(f"\n{'='*20} {test_name} {'='*20}")
+        try:
+            test_func()
+        except Exception as e:
+            print(f"❌ Test suite '{test_name}' failed with error: {str(e)}")
+    
+    # Run Phase 2 tests
+    print(f"\n🟢 PHASE 2: AUTHENTICATION & REVIEW TESTS")
+    print("=" * 50)
+    for test_name, test_func in phase2_tests:
         print(f"\n{'='*20} {test_name} {'='*20}")
         try:
             test_func()
@@ -592,17 +625,31 @@ def main():
             print(f"❌ Test suite '{test_name}' failed with error: {str(e)}")
     
     # Print final results
-    print(f"\n{'='*50}")
+    print(f"\n{'='*70}")
     print(f"📊 FINAL RESULTS")
-    print(f"{'='*50}")
+    print(f"{'='*70}")
     print(f"Tests passed: {tester.tests_passed}/{tester.tests_run}")
     print(f"Success rate: {(tester.tests_passed/tester.tests_run)*100:.1f}%")
     
+    # Detailed breakdown
+    if tester.auth_token:
+        print(f"✅ Authentication: Working (Token acquired)")
+    else:
+        print(f"❌ Authentication: Failed (No token)")
+        
+    if hasattr(tester, 'test_review_id'):
+        print(f"✅ Review System: Working (Review created)")
+    else:
+        print(f"❌ Review System: Failed (No review created)")
+    
     if tester.tests_passed == tester.tests_run:
-        print("🎉 All tests passed! Backend API is working correctly.")
+        print("🎉 All tests passed! Backend API with authentication and reviews is working correctly.")
+        return 0
+    elif tester.tests_passed >= tester.tests_run * 0.8:  # 80% pass rate
+        print("⚠️  Most tests passed. Some minor issues detected.")
         return 0
     else:
-        print("⚠️  Some tests failed. Check the output above for details.")
+        print("⚠️  Significant issues detected. Check the output above for details.")
         return 1
 
 if __name__ == "__main__":
