@@ -1,6 +1,6 @@
 import React, { useState, useEffect, createContext, useContext } from 'react';
 import axios from 'axios';
-import { Search, Filter, Star, ExternalLink, Sparkles, Zap, Brain, Music, Image, Video, Code2, Database, Gamepad2, User, LogOut, LogIn, MessageCircle, Plus } from 'lucide-react';
+import { Search, Filter, Star, ExternalLink, Sparkles, Zap, Brain, Music, Image, Video, Code2, Database, Gamepad2, User, LogOut, LogIn, MessageCircle, Plus, Edit, Trash2, MoreVertical } from 'lucide-react';
 import { Input } from './components/ui/input';
 import { Button } from './components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card';
@@ -11,6 +11,8 @@ import { Textarea } from './components/ui/textarea';
 import { Label } from './components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs';
 import { Separator } from './components/ui/separator';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from './components/ui/dropdown-menu';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from './components/ui/alert-dialog';
 import './App.css';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
