@@ -34,9 +34,12 @@ const AuthProvider = ({ children }) => {
 
   const fetchCurrentUser = async () => {
     try {
+      console.log('Fetching current user...');
       const response = await axios.get(`${API}/me`);
+      console.log('User profile response:', response.data);
       setUser(response.data);
     } catch (error) {
+      console.error('Fetch user error:', error);
       logout();
     }
   };
