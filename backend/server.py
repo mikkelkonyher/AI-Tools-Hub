@@ -361,6 +361,68 @@ async def create_review(review: ReviewCreate, current_user: User = Depends(get_c
     
     return review_data
 
+@api_router.put("/reviews/{review_id}", response_model=Review)
+async def update_review(review_id: str, review_update: ReviewCreate, current_user: User = Depends(get_current_active_user)):
+    """Update an existing review (only by the review author)"""
+    
+    # Get existing review
+    existing_review = await db.reviews.find_one({"id": review_id})
+    if not existing_review:
+        raise HTTPException(status_code=404, detail="Review not found")
+    
+    # Check if user owns this review
+    if existing_review["user_id"] != current_user.id:
+        raise HTTPException(status_code=403, detail="You can only edit your own reviews")
+    
+    # Check if tool exists
+    tool = await db.ai_tools.find_one({"id": review_update.tool_id})
+    if not tool:
+        raise HTTPException(status_code=404, detail="Tool not found")
+    
+    # Update review
+    updated_review = Review(
+        id=review_id,
+        **review_update.dict(),
+        user_id=current_user.id,
+        username=current_user.username,
+        created_at=existing_review["created_at"],
+        updated_at=datetime.utcnow()
+    )
+    
+    await db.reviews.update_one(
+        {"id": review_id},
+        {"$set": updated_review.dict()}
+    )
+    
+    # Update tool rating
+    await update_tool_rating(review_update.tool_id)
+    
+    return updated_review
+
+@api_router.delete("/reviews/{review_id}")
+async def delete_review(review_id: str, current_user: User = Depends(get_current_active_user)):
+    """Delete a review (only by the review author)"""
+    
+    # Get existing review
+    existing_review = await db.reviews.find_one({"id": review_id})
+    if not existing_review:
+        raise HTTPException(status_code=404, detail="Review not found")
+    
+    # Check if user owns this review
+    if existing_review["user_id"] != current_user.id:
+        raise HTTPException(status_code=403, detail="You can only delete your own reviews")
+    
+    # Delete review
+    await db.reviews.delete_one({"id": review_id})
+    
+    # Delete associated comments
+    await db.comments.delete_many({"review_id": review_id})
+    
+    # Update tool rating
+    await update_tool_rating(existing_review["tool_id"])
+    
+    return {"message": "Review deleted successfully"}
+
 @api_router.get("/reviews/{tool_id}", response_model=ReviewsResponse)
 async def get_tool_reviews(
     tool_id: str,
