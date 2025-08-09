@@ -300,7 +300,7 @@ const AuthModal = ({ isOpen, onClose }) => {
 };
 
 // Review Modal Component
-const ReviewModal = ({ isOpen, onClose, tool }) => {
+const ReviewModal = ({ isOpen, onClose, tool, editingReview = null, onReviewUpdated }) => {
   const { isAuthenticated } = useAuth();
   const [reviewData, setReviewData] = useState({
     rating: 5,
@@ -310,6 +310,19 @@ const ReviewModal = ({ isOpen, onClose, tool }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  // Initialize form with editing data if provided
+  useEffect(() => {
+    if (editingReview) {
+      setReviewData({
+        rating: editingReview.rating,
+        title: editingReview.title,
+        content: editingReview.content
+      });
+    } else {
+      setReviewData({ rating: 5, title: '', content: '' });
+    }
+  }, [editingReview]);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!isAuthenticated) return;
@@ -318,17 +331,25 @@ const ReviewModal = ({ isOpen, onClose, tool }) => {
     setError('');
 
     try {
-      await axios.post(`${API}/reviews`, {
-        tool_id: tool.id,
-        ...reviewData
-      });
+      if (editingReview) {
+        // Update existing review
+        await axios.put(`${API}/reviews/${editingReview.id}`, {
+          tool_id: tool.id,
+          ...reviewData
+        });
+      } else {
+        // Create new review
+        await axios.post(`${API}/reviews`, {
+          tool_id: tool.id,
+          ...reviewData
+        });
+      }
       
       onClose();
       setReviewData({ rating: 5, title: '', content: '' });
-      // Refresh page to show new review
-      window.location.reload();
+      if (onReviewUpdated) onReviewUpdated();
     } catch (error) {
-      setError(error.response?.data?.detail || 'Failed to submit review');
+      setError(error.response?.data?.detail || `Failed to ${editingReview ? 'update' : 'submit'} review`);
     }
     setLoading(false);
   };
@@ -343,9 +364,11 @@ const ReviewModal = ({ isOpen, onClose, tool }) => {
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="bg-gray-900 border-gray-700 text-white max-w-md">
         <DialogHeader>
-          <DialogTitle>Write a Review for {tool.name}</DialogTitle>
+          <DialogTitle>
+            {editingReview ? 'Edit Your Review' : 'Write a Review'} for {tool.name}
+          </DialogTitle>
           <DialogDescription className="text-gray-400">
-            Share your experience with this AI tool
+            {editingReview ? 'Update your experience with this AI tool' : 'Share your experience with this AI tool'}
           </DialogDescription>
         </DialogHeader>
 
@@ -398,7 +421,7 @@ const ReviewModal = ({ isOpen, onClose, tool }) => {
               Cancel
             </Button>
             <Button type="submit" disabled={loading} className="flex-1">
-              {loading ? 'Submitting...' : 'Submit Review'}
+              {loading ? (editingReview ? 'Updating...' : 'Submitting...') : (editingReview ? 'Update Review' : 'Submit Review')}
             </Button>
           </div>
         </form>
