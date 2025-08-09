@@ -266,6 +266,299 @@ class AIToolsAPITester:
         
         return False
 
+    # ===== PHASE 2: AUTHENTICATION TESTS =====
+    
+    def test_user_registration(self):
+        """Test user registration endpoint"""
+        timestamp = datetime.now().strftime("%H%M%S")
+        test_user_data = {
+            "username": f"testuser_{timestamp}",
+            "email": f"test_{timestamp}@example.com",
+            "password": "TestPassword123!"
+        }
+        
+        success, response = self.run_test(
+            "User Registration", 
+            "POST", 
+            "register", 
+            200,
+            data=test_user_data
+        )
+        
+        if success and 'id' in response:
+            self.test_user_id = response['id']
+            print(f"   Created user: {response.get('username')} (ID: {self.test_user_id})")
+            # Store credentials for login test
+            self.test_username = test_user_data['username']
+            self.test_password = test_user_data['password']
+        
+        return success, response
+
+    def test_duplicate_user_registration(self):
+        """Test duplicate user registration should fail"""
+        if not hasattr(self, 'test_username'):
+            print("   Skipping - no test user created yet")
+            return True, {}
+            
+        duplicate_user_data = {
+            "username": self.test_username,
+            "email": f"different_{datetime.now().strftime('%H%M%S')}@example.com",
+            "password": "DifferentPassword123!"
+        }
+        
+        success, response = self.run_test(
+            "Duplicate User Registration (should fail)", 
+            "POST", 
+            "register", 
+            400,  # Should fail with 400
+            data=duplicate_user_data
+        )
+        
+        return success, response
+
+    def test_user_login(self):
+        """Test user login endpoint"""
+        if not hasattr(self, 'test_username'):
+            print("   Skipping - no test user created yet")
+            return False, {}
+            
+        login_data = {
+            "username": self.test_username,
+            "password": self.test_password
+        }
+        
+        success, response = self.run_test(
+            "User Login", 
+            "POST", 
+            "login", 
+            200,
+            data=login_data
+        )
+        
+        if success and 'access_token' in response:
+            self.auth_token = response['access_token']
+            print(f"   Login successful, token received")
+        
+        return success, response
+
+    def test_invalid_login(self):
+        """Test login with invalid credentials"""
+        invalid_login_data = {
+            "username": "nonexistent_user",
+            "password": "wrong_password"
+        }
+        
+        success, response = self.run_test(
+            "Invalid Login (should fail)", 
+            "POST", 
+            "login", 
+            401,  # Should fail with 401
+            data=invalid_login_data
+        )
+        
+        return success, response
+
+    def test_get_current_user(self):
+        """Test getting current user profile (requires auth)"""
+        if not self.auth_token:
+            print("   Skipping - no auth token available")
+            return False, {}
+            
+        success, response = self.run_test(
+            "Get Current User Profile", 
+            "GET", 
+            "me", 
+            200,
+            auth_required=True
+        )
+        
+        if success:
+            print(f"   User profile: {response.get('username')} ({response.get('email')})")
+        
+        return success, response
+
+    def test_protected_route_without_auth(self):
+        """Test accessing protected route without authentication"""
+        # Temporarily remove auth token
+        temp_token = self.auth_token
+        self.auth_token = None
+        
+        success, response = self.run_test(
+            "Protected Route Without Auth (should fail)", 
+            "GET", 
+            "me", 
+            401,  # Should fail with 401
+            auth_required=False
+        )
+        
+        # Restore auth token
+        self.auth_token = temp_token
+        
+        return success, response
+
+    # ===== PHASE 2: REVIEW SYSTEM TESTS =====
+    
+    def test_create_review(self):
+        """Test creating a review for a tool (requires auth)"""
+        if not self.auth_token:
+            print("   Skipping - no auth token available")
+            return False, {}
+            
+        # First get a tool ID
+        if not self.test_tool_id:
+            success, tools_response = self.run_test("Get Tools for Review", "GET", "tools", 200)
+            if success and tools_response.get('tools'):
+                self.test_tool_id = tools_response['tools'][0]['id']
+                print(f"   Using tool: {tools_response['tools'][0]['name']}")
+            else:
+                print("   No tools available for review")
+                return False, {}
+        
+        review_data = {
+            "tool_id": self.test_tool_id,
+            "rating": 4,
+            "title": "Great AI tool!",
+            "content": "This tool has been very helpful for my projects. The interface is intuitive and the results are impressive."
+        }
+        
+        success, response = self.run_test(
+            "Create Review", 
+            "POST", 
+            "reviews", 
+            200,
+            data=review_data,
+            auth_required=True
+        )
+        
+        if success and 'id' in response:
+            self.test_review_id = response['id']
+            print(f"   Created review: {response.get('title')} (Rating: {response.get('rating')}/5)")
+        
+        return success, response
+
+    def test_duplicate_review(self):
+        """Test creating duplicate review for same tool (should fail)"""
+        if not self.auth_token or not self.test_tool_id:
+            print("   Skipping - no auth token or tool ID available")
+            return True, {}
+            
+        duplicate_review_data = {
+            "tool_id": self.test_tool_id,
+            "rating": 5,
+            "title": "Another review",
+            "content": "This should fail because user already reviewed this tool."
+        }
+        
+        success, response = self.run_test(
+            "Duplicate Review (should fail)", 
+            "POST", 
+            "reviews", 
+            400,  # Should fail with 400
+            data=duplicate_review_data,
+            auth_required=True
+        )
+        
+        return success, response
+
+    def test_get_tool_reviews(self):
+        """Test getting reviews for a specific tool"""
+        if not self.test_tool_id:
+            print("   Skipping - no tool ID available")
+            return False, {}
+            
+        success, response = self.run_test(
+            "Get Tool Reviews", 
+            "GET", 
+            f"reviews/{self.test_tool_id}", 
+            200
+        )
+        
+        if success:
+            reviews = response.get('reviews', [])
+            print(f"   Found {len(reviews)} reviews for tool")
+            if reviews:
+                print(f"   Latest review: {reviews[0].get('title')} by {reviews[0].get('username')}")
+        
+        return success, response
+
+    def test_create_comment(self):
+        """Test creating a comment on a review (requires auth)"""
+        if not self.auth_token or not hasattr(self, 'test_review_id'):
+            print("   Skipping - no auth token or review ID available")
+            return False, {}
+            
+        comment_data = {
+            "review_id": self.test_review_id,
+            "content": "I completely agree with this review! Thanks for sharing your experience."
+        }
+        
+        success, response = self.run_test(
+            "Create Comment", 
+            "POST", 
+            "comments", 
+            200,
+            data=comment_data,
+            auth_required=True
+        )
+        
+        if success and 'id' in response:
+            self.test_comment_id = response['id']
+            print(f"   Created comment: {response.get('content')[:50]}...")
+        
+        return success, response
+
+    def test_get_review_comments(self):
+        """Test getting comments for a specific review"""
+        if not hasattr(self, 'test_review_id'):
+            print("   Skipping - no review ID available")
+            return False, {}
+            
+        success, response = self.run_test(
+            "Get Review Comments", 
+            "GET", 
+            f"comments/{self.test_review_id}", 
+            200
+        )
+        
+        if success:
+            comments = response.get('comments', [])
+            print(f"   Found {len(comments)} comments for review")
+            if comments:
+                print(f"   Latest comment: {comments[0].get('content')[:50]}... by {comments[0].get('username')}")
+        
+        return success, response
+
+    def test_review_without_auth(self):
+        """Test creating review without authentication (should fail)"""
+        if not self.test_tool_id:
+            print("   Skipping - no tool ID available")
+            return True, {}
+            
+        # Temporarily remove auth token
+        temp_token = self.auth_token
+        self.auth_token = None
+        
+        review_data = {
+            "tool_id": self.test_tool_id,
+            "rating": 3,
+            "title": "Unauthorized review",
+            "content": "This should fail."
+        }
+        
+        success, response = self.run_test(
+            "Review Without Auth (should fail)", 
+            "POST", 
+            "reviews", 
+            401,  # Should fail with 401
+            data=review_data,
+            auth_required=False
+        )
+        
+        # Restore auth token
+        self.auth_token = temp_token
+        
+        return success, response
+
 def main():
     print("🚀 Starting AI Tools Hub API Testing")
     print("=" * 50)
